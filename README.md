@@ -3,7 +3,7 @@
 ### Install
 
 
-    git clone https://github.com/assigdev/log_analyzer.git*
+    git clone https://github.com/assigdev/ycrawler.git
     
     pipenv install
     
