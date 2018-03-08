@@ -1,0 +1,9 @@
+.idea/
+.publish/
+__pycache__/
+dist/
+output/
+
+*.map
+*.py[cod]
+*.log
