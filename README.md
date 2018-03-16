@@ -27,7 +27,5 @@ if you don't have pipenv:
                             output path
       -t TIMEOUT, --timeout TIMEOUT
                             time out for async tasks
-      -b BYTE_EXTENSIONS [BYTE_EXTENSIONS ...], --byte_extensions BYTE_EXTENSIONS [BYTE_EXTENSIONS ...]
-                            byte file extensions
       -l LOG, --log LOG     log file path
       -d, --debug           debug logging

@@ -17,7 +17,7 @@ from parser_with_xpath import NaiveHTMLParser
 BASE_URL = 'https://news.ycombinator.com/'
 BYTE_EXTENSIONS = ['pdf', 'jpg', 'png', 'gif']
 OUTPUT_PATH = 'output/'
-STATE_FILE_PATH = OUTPUT_PATH + 'crawled_urls.txt'
+STATE_FILE_PATH = os.path.join(OUTPUT_PATH, 'crawled_urls.txt')
 TIMEOUT = 15
 SLEEP_TIME = 300
 
@@ -60,8 +60,8 @@ def save_current_urls(output_path, news_urls, comment_urls):
 def get_and_create_paths(urls, output_path):
     paths = []
     for url in urls:
-        path = url.replace('/', '*')
-        os.makedirs(output_path+path)
+        path = url.replace('/', '_')
+        os.makedirs(os.path.join(output_path, path))
         paths.append(path)
     return paths
 
@@ -88,8 +88,7 @@ def parse_comments_urls(root, comment_urls, base_url):
     return new_comments_urls
 
 
-async def parse_urls_in_comment(html, path):
-    asyncio.sleep(0)
+def parse_urls_in_comment(html, path):
     root = get_parser_root(html)
     elements = root.findall('.//a[@rel="nofollow"]')
     inner_urls, _urls_names = [], []
@@ -106,17 +105,21 @@ async def get_comments_pages(url, session, path):
     return html, path, url
 
 
-async def save_file(url, session, path, options, comment_id='',):
-    filename = options.output + path + '/' + comment_id + '_' + url.replace('/', '*')
+async def save_file(url, session, path, options, byte_extensions, comment_id='',):
+    if comment_id:
+        filename = comment_id + url.replace('/', '_')
+    else:
+        filename = url.replace('/', '_')
+    file_path = os.path.join(options.output, path, filename)
     try:
         async with session.get(url) as resp:
             ext = url.split('.')[-1]
-            if ext in options.byte_extensions:
+            if ext in byte_extensions:
                 content = await resp.read()
             else:
                 content = await resp.text()
             loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, save_file_executor, filename, content, ext, options.byte_extensions)
+            loop.run_in_executor(None, save_file_executor, file_path, content, ext, byte_extensions)
     except (HTTPError, ClientConnectorError, ValueError) as e:
         logging.error('error in download ' + url)
         logging.debug(e)
@@ -126,7 +129,7 @@ async def save_file(url, session, path, options, comment_id='',):
 
 def save_file_executor(filename, content, ext, byte_extensions):
     if ext in byte_extensions:
-        with open(filename+'.'+ext, 'wb') as f:
+        with open(filename, 'wb') as f:
             f.write(content)
     else:
         if ext != 'html':
@@ -135,15 +138,15 @@ def save_file_executor(filename, content, ext, byte_extensions):
             f.write(content)
 
 
-async def crawling_news(news_urls, paths, options):
+async def crawling_news(news_urls, paths, options, byte_extensions):
     async with aiohttp.ClientSession() as session:
-        tasks = [save_file(service, session, paths[i], options) for i, service in enumerate(news_urls)]
+        tasks = [save_file(service, session, paths[i], options, byte_extensions) for i, service in enumerate(news_urls)]
         done, pending = await asyncio.wait(tasks, timeout=options.timeout)
         for future in pending:
             future.cancel()
 
 
-async def crawling_comments(comment_urls, paths, options):
+async def crawling_comments(comment_urls, paths, options, byte_extensions):
     async with aiohttp.ClientSession() as session:
         urls = []
         for i in range(0, len(comment_urls), 6):
@@ -151,15 +154,15 @@ async def crawling_comments(comment_urls, paths, options):
             done, pending = await asyncio.wait(tasks, timeout=options.timeout)
             for future in done:
                 html, path, url = future.result()
-                inner_urls = await parse_urls_in_comment(html, path)
+                inner_urls = parse_urls_in_comment(html, path)
                 urls.extend(inner_urls)
-        tasks = [save_file(url.url, session, url.path, options, str(url.number)+'_') for url in urls]
+        tasks = [save_file(url.url, session, url.path, options, byte_extensions, str(url.number)+'_') for url in urls]
         done, pending = await asyncio.wait(tasks, timeout=options.timeout)
         for future in pending:
             future.cancel()
 
 
-def main(options, base_url):
+def main(options, base_url, byte_extensions):
     while True:
         logging.info('Search urls')
         base_page = urlopen(base_url)
@@ -177,8 +180,8 @@ def main(options, base_url):
             start_time = time.time()
             ioloop = asyncio.get_event_loop()
             tasks = [
-                ioloop.create_task(crawling_news(new_news_urls, paths, options)),
-                ioloop.create_task(crawling_comments(new_comment_urls, paths, options))
+                ioloop.create_task(crawling_news(new_news_urls, paths, options, byte_extensions)),
+                ioloop.create_task(crawling_comments(new_comment_urls, paths, options, byte_extensions))
             ]
             wait_tasks = asyncio.wait(tasks)
             ioloop.run_until_complete(wait_tasks)
@@ -198,7 +201,6 @@ if __name__ == '__main__':
     parser.add_argument("-sl", "--sleep_time", default=SLEEP_TIME, help="time for before next parse", type=int)
     parser.add_argument("-o", "--output", default=OUTPUT_PATH, help="output path")
     parser.add_argument("-t", "--timeout", default=TIMEOUT, help="time out for async tasks", type=int)
-    parser.add_argument("-b", "--byte_extensions", default=BYTE_EXTENSIONS, help="byte file extensions", nargs='+')
     parser.add_argument("-l", "--log", default=None,  help='log file path')
     parser.add_argument("-d", "--debug", default=False,  help='debug logging', action="store_true")
     opts = parser.parse_args()
@@ -206,7 +208,7 @@ if __name__ == '__main__':
                         format='[%(asctime)s] %(levelname).1s %(message)s', datefmt='%Y.%m.%d %H:%M:%S')
 
     try:
-        main(opts, BASE_URL)
+        main(opts, BASE_URL, BYTE_EXTENSIONS)
     except KeyboardInterrupt:
         logging.info('Program exit')
     except Exception as e:
