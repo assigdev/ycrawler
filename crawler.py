@@ -36,22 +36,17 @@ def get_parser_root(page):
 
 def get_current_urls(output_path):
     news_urls, comment_urls = [], []
-    try:
+    if os.path.isfile(output_path):
         with open(output_path, 'r') as f:
             for line in f:
                 line = line.split()
                 news_urls.append(line[0])
                 comment_urls.append(line[1])
-    except FileNotFoundError:
-        pass
     return news_urls, comment_urls
 
 
 def save_current_urls(output_path, news_urls, comment_urls):
-    if os.path.exists(output_path):
-        open_mode = 'a'
-    else:
-        open_mode = 'w'
+    open_mode = 'a' if os.path.exists(output_path) else 'w'
     with open(output_path, open_mode) as f:
         for i, news_url in enumerate(news_urls):
             f.write('{0} {1}\n'.format(news_url, comment_urls[i]))
