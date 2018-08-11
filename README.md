@@ -1,4 +1,4 @@
-# Log Analyzer
+# Ycrawler
 
 ### Install
 
@@ -13,7 +13,7 @@ if you don't have pipenv:
 
 ### Run
 
-    python log_analyzer.py
+    python crawler.py
 
 ### Configs
     
